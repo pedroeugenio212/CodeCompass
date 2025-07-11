@@ -22,6 +22,7 @@ O **CodeCompass** é um agente de linha de comando que ajuda desenvolvedores a e
 - ⚠️ Classificação de pontos de atenção e sugestões por tipo
 - 📊 Relatórios em JSON, Markdown e Excel
 - 🔥 Pronto para integração com IA real (ChatGPT, Claude, etc.)
+- 📝 Geração automática de documentação de código via OpenAI
 
 ---
 
@@ -29,6 +30,12 @@ O **CodeCompass** é um agente de linha de comando que ajuda desenvolvedores a e
 
 ```bash
 python3 codecompass.py ./seu-projeto
+```
+
+Para gerar documentação automática dos arquivos:
+
+```bash
+python3 codecompass.py --docs ./seu-projeto
 ```
 
 📄 `src/main/java/UserDao.java`  
@@ -87,7 +94,7 @@ python3 codecompass.py ./caminho/do/projeto
 - [x] Exportação para JSON, Markdown e Excel
 - [x] Classificação de risco por arquivo
 - [x] Ignorar pastas de build
-- [ ] Integração com OpenAI API (GPT-4)
+- [x] Integração com OpenAI API (GPT-4)
 - [ ] Extensão VS Code
 - [ ] Web dashboard interativo
 

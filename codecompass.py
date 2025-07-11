@@ -1,7 +1,10 @@
 import json
 import pathlib
 import sys
+import os
 from typing import List, Dict
+
+import openai
 
 EXT_PARA_LINGUAGEM = {
     ".py": "Python",
@@ -73,6 +76,29 @@ def analisar_codigo_conteudo(caminho: pathlib.Path, conteudo: str) -> Dict:
         "sugestoes": sugestoes,
         "risco": risco,
     }
+
+
+def gerar_documentacao_codigo(caminho: pathlib.Path, conteudo: str) -> str:
+    """Gera documentação automática para um arquivo usando a OpenAI API."""
+    ext = caminho.suffix.lower()
+    linguagem = EXT_PARA_LINGUAGEM.get(ext, "Desconhecida")
+    openai.api_key = os.getenv("OPENAI_API_KEY")
+    prompt = (
+        "Gere a documentação automática para o código a seguir.\n"
+        f"Use o estilo da linguagem {linguagem}, como docstrings, Javadoc ou comentários explicativos.\n"
+        "Não altere a lógica do código, apenas adicione comentários que ajudem a entendê-lo.\n\n"
+        f"Código:\n{conteudo}"
+    )
+    try:
+        resp = openai.ChatCompletion.create(
+            model="gpt-4",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
+        )
+        return resp["choices"][0]["message"]["content"]
+    except Exception as exc:
+        print(f"Aviso: falha ao documentar {caminho}: {exc}")
+        return conteudo
 
 
 def exibir_resultado_terminal(resultado: Dict) -> None:
@@ -200,7 +226,42 @@ def main(arquivos: List[pathlib.Path]) -> None:
     )
 
 
+def gerar_documentacao_arquivos(alvo: pathlib.Path) -> None:
+    if alvo.is_dir():
+        arquivos = listar_arquivos(alvo)
+    else:
+        arquivos = [alvo]
+    ok: List[str] = []
+    falha: List[str] = []
+    for caminho in arquivos:
+        try:
+            with caminho.open("r", encoding="utf-8", errors="ignore") as f:
+                conteudo = f.read()
+            novo_conteudo = gerar_documentacao_codigo(caminho, conteudo)
+            novo_nome = caminho.with_name(f"{caminho.stem}_doc{caminho.suffix}")
+            with novo_nome.open("w", encoding="utf-8") as f:
+                f.write(novo_conteudo)
+            ok.append(str(novo_nome))
+        except Exception as exc:
+            print(f"Erro ao documentar {caminho}: {exc}")
+            falha.append(str(caminho))
+    if ok:
+        print("\nArquivos documentados:")
+        for o in ok:
+            print(f" - {o}")
+    if falha:
+        print("\nFalha ao documentar:")
+        for f in falha:
+            print(f" - {f}")
+
+
 if __name__ == "__main__":
+    if "--docs" in sys.argv:
+        idx = sys.argv.index("--docs")
+        alvo = pathlib.Path(sys.argv[idx + 1]) if len(sys.argv) > idx + 1 else pathlib.Path(".")
+        gerar_documentacao_arquivos(alvo)
+        sys.exit(0)
+
     if len(sys.argv) > 1:
         alvo = pathlib.Path(sys.argv[1])
         if alvo.is_dir():
