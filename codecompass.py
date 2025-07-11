@@ -20,88 +20,165 @@ EXT_PARA_LINGUAGEM = {
 
 
 def listar_arquivos(diretorio: pathlib.Path) -> List[pathlib.Path]:
-    """Retorna todos os arquivos conhecidos em um diretório recursivamente."""
-    return [p for p in diretorio.rglob('*') if p.suffix in EXT_PARA_LINGUAGEM]
+    """Retorna todos os arquivos conhecidos em um diretório recursivamente.
+
+    Pastas comuns de build e dependências são ignoradas.
+    """
+    ignorar_pastas = {"target", "build", "node_modules", "__pycache__"}
+    return [
+        p
+        for p in diretorio.rglob("*")
+        if p.is_file()
+        and p.suffix in EXT_PARA_LINGUAGEM
+        and not any(part in ignorar_pastas for part in p.parts)
+    ]
+
 
 def analisar_codigo_conteudo(caminho: pathlib.Path, conteudo: str) -> Dict:
     ext = caminho.suffix.lower()
     linguagem = EXT_PARA_LINGUAGEM.get(ext, "Desconhecida")
     resumo = f"Arquivo com {len(conteudo.splitlines())} linhas."
     pontos_atencao: List[str] = []
-    sugestoes: List[str] = []
+    sugestoes = {
+        "refatoracao": [],
+        "modernizacao": [],
+        "boas_praticas": [],
+    }
 
     # Heurísticas simples para preencher dados de demonstração
     lower_content = conteudo.lower()
     if "select" in lower_content:
         pontos_atencao.append("Consulta SQL direta detectada")
-        sugestoes.append("Use uma camada de acesso a dados separada")
+        sugestoes["boas_praticas"].append("Criar camada DAO")
+        sugestoes["modernizacao"].append("Migrar para ORM ou Spring Data JPA")
 
     if linguagem == "Java":
-        sugestoes.append("Considere usar Spring Boot para modernização")
+        sugestoes["modernizacao"].append("Considere usar Spring Boot para modernização")
     if linguagem == "Python" and "print(" in lower_content:
         pontos_atencao.append("Uso de prints diretos")
-        sugestoes.append("Utilize logging para melhor controle")
+        sugestoes["boas_praticas"].append("Utilize logging para melhor controle")
+
+    qtd_pontos = len(pontos_atencao)
+    risco = "baixo"
+    if qtd_pontos >= 4:
+        risco = "alto"
+    elif qtd_pontos >= 2:
+        risco = "médio"
+
     return {
         "arquivo": str(caminho),
         "linguagem": linguagem,
         "resumo": resumo,
         "pontos_atencao": pontos_atencao,
         "sugestoes": sugestoes,
+        "risco": risco,
     }
 
+
 def exibir_resultado_terminal(resultado: Dict) -> None:
-    print(f"\n\U0001F4C4 {resultado['arquivo']}")
+    print(f"\n\U0001f4c4 {resultado['arquivo']}")
     print(f"Linguagem: {resultado['linguagem']}")
     print(f"Resumo: {resultado['resumo']}")
+    print(f"Risco: {resultado['risco']}")
     if resultado.get("pontos_atencao"):
         print("Pontos de atenção:")
         for ponto in resultado["pontos_atencao"]:
             print(f" - {ponto}")
     if resultado.get("sugestoes"):
-        print("Sugestões:")
-        for sugestao in resultado["sugestoes"]:
-            print(f" - {sugestao}")
+        for categoria, itens in resultado["sugestoes"].items():
+            if itens:
+                print(f"Sugestões - {categoria.replace('_', ' ').title()}:")
+                for sugestao in itens:
+                    print(f" - {sugestao}")
 
-def salvar_json(resultados: List[Dict], caminho: pathlib.Path = pathlib.Path("codecompass_report.json")) -> None:
+
+def salvar_json(
+    resultados: List[Dict],
+    caminho: pathlib.Path = pathlib.Path("codecompass_report.json"),
+) -> None:
     with caminho.open("w", encoding="utf-8") as f:
         json.dump(resultados, f, ensure_ascii=False, indent=2)
 
-def salvar_markdown(resultados: List[Dict], caminho: pathlib.Path = pathlib.Path("codecompass_report.md")) -> None:
+
+def salvar_markdown(
+    resultados: List[Dict],
+    caminho: pathlib.Path = pathlib.Path("codecompass_report.md"),
+) -> None:
     linhas = ["# Relatório CodeCompass"]
     for r in resultados:
-        linhas.append(f"\n## \U0001F4C4 {r['arquivo']}")
+        linhas.append(f"\n## \U0001f4c4 {r['arquivo']}")
         linhas.append(f"**Linguagem:** {r['linguagem']}")
         linhas.append(f"**Resumo:** {r['resumo']}")
+        linhas.append(f"**Risco:** {r['risco']}")
         if r.get("pontos_atencao"):
             linhas.append("### Pontos de atenção")
             for p in r["pontos_atencao"]:
                 linhas.append(f"- {p}")
         if r.get("sugestoes"):
-            linhas.append("### Sugestões")
-            for s in r["sugestoes"]:
-                linhas.append(f"- {s}")
+            for categoria, itens in r["sugestoes"].items():
+                if itens:
+                    linhas.append(
+                        f"### Sugestões - {categoria.replace('_', ' ').title()}"
+                    )
+                    for s in itens:
+                        linhas.append(f"- {s}")
     with caminho.open("w", encoding="utf-8") as f:
         f.write("\n".join(linhas))
 
-def salvar_html(resultados: List[Dict], caminho: pathlib.Path = pathlib.Path("codecompass_report.html")) -> None:
+
+def salvar_html(
+    resultados: List[Dict],
+    caminho: pathlib.Path = pathlib.Path("codecompass_report.html"),
+) -> None:
     html = ["<html><body>", "<h1>Relatório CodeCompass</h1>"]
     for r in resultados:
         html.append(f"<h2>{r['arquivo']}</h2>")
         html.append(f"<p><strong>Linguagem:</strong> {r['linguagem']}</p>")
         html.append(f"<p><strong>Resumo:</strong> {r['resumo']}</p>")
-        if r.get('pontos_atencao'):
+        html.append(f"<p><strong>Risco:</strong> {r['risco']}</p>")
+        if r.get("pontos_atencao"):
             html.append("<h3>Pontos de atenção</h3><ul>")
-            for p in r['pontos_atencao']:
+            for p in r["pontos_atencao"]:
                 html.append(f"<li>{p}</li>")
             html.append("</ul>")
-        if r.get('sugestoes'):
-            html.append("<h3>Sugestões</h3><ul>")
-            for s in r['sugestoes']:
-                html.append(f"<li>{s}</li>")
-            html.append("</ul>")
+        if r.get("sugestoes"):
+            for categoria, itens in r["sugestoes"].items():
+                if itens:
+                    html.append(
+                        f"<h3>Sugestões - {categoria.replace('_', ' ').title()}</h3><ul>"
+                    )
+                    for s in itens:
+                        html.append(f"<li>{s}</li>")
+                    html.append("</ul>")
     html.append("</body></html>")
-    with caminho.open('w', encoding='utf-8') as f:
-        f.write('\n'.join(html))
+    with caminho.open("w", encoding="utf-8") as f:
+        f.write("\n".join(html))
+
+
+def salvar_excel(
+    resultados: List[Dict],
+    caminho: pathlib.Path = pathlib.Path("codecompass_report.xlsx"),
+) -> None:
+    """Gera um relatório gerencial em Excel."""
+    import pandas as pd
+
+    linhas = []
+    for r in resultados:
+        linhas.append(
+            {
+                "Arquivo": r["arquivo"],
+                "Linguagem": r["linguagem"],
+                "Resumo": r["resumo"],
+                "Risco": r["risco"],
+                "Pontos de Atenção": ", ".join(r["pontos_atencao"]),
+                "Sugestões - Refatoração": ", ".join(r["sugestoes"]["refatoracao"]),
+                "Sugestões - Modernização": ", ".join(r["sugestoes"]["modernizacao"]),
+                "Sugestões - Boas Práticas": ", ".join(r["sugestoes"]["boas_praticas"]),
+            }
+        )
+    df = pd.DataFrame(linhas)
+    df.to_excel(caminho, index=False)
+
 
 def main(arquivos: List[pathlib.Path]) -> None:
     resultados = []
@@ -117,7 +194,11 @@ def main(arquivos: List[pathlib.Path]) -> None:
     salvar_json(resultados)
     salvar_markdown(resultados)
     salvar_html(resultados)
-    print("\n✅ Análise concluída. Relatórios salvos em: codecompass_report.json, codecompass_report.md e codecompass_report.html")
+    salvar_excel(resultados)
+    print(
+        "\n✅ Análise concluída. Relatórios salvos em: codecompass_report.json, codecompass_report.md, codecompass_report.html e codecompass_report.xlsx"
+    )
+
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
@@ -127,5 +208,5 @@ if __name__ == "__main__":
         else:
             arquivos = [alvo]
     else:
-        arquivos = listar_arquivos(pathlib.Path('.'))
+        arquivos = listar_arquivos(pathlib.Path("."))
     main(arquivos)
