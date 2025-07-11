@@ -18,12 +18,29 @@ EXT_PARA_LINGUAGEM = {
     ".swift": "Swift",
 }
 
+
+def listar_arquivos(diretorio: pathlib.Path) -> List[pathlib.Path]:
+    """Retorna todos os arquivos conhecidos em um diretório recursivamente."""
+    return [p for p in diretorio.rglob('*') if p.suffix in EXT_PARA_LINGUAGEM]
+
 def analisar_codigo_conteudo(caminho: pathlib.Path, conteudo: str) -> Dict:
     ext = caminho.suffix.lower()
     linguagem = EXT_PARA_LINGUAGEM.get(ext, "Desconhecida")
     resumo = f"Arquivo com {len(conteudo.splitlines())} linhas."
     pontos_atencao: List[str] = []
     sugestoes: List[str] = []
+
+    # Heurísticas simples para preencher dados de demonstração
+    lower_content = conteudo.lower()
+    if "select" in lower_content:
+        pontos_atencao.append("Consulta SQL direta detectada")
+        sugestoes.append("Use uma camada de acesso a dados separada")
+
+    if linguagem == "Java":
+        sugestoes.append("Considere usar Spring Boot para modernização")
+    if linguagem == "Python" and "print(" in lower_content:
+        pontos_atencao.append("Uso de prints diretos")
+        sugestoes.append("Utilize logging para melhor controle")
     return {
         "arquivo": str(caminho),
         "linguagem": linguagem,
@@ -66,6 +83,26 @@ def salvar_markdown(resultados: List[Dict], caminho: pathlib.Path = pathlib.Path
     with caminho.open("w", encoding="utf-8") as f:
         f.write("\n".join(linhas))
 
+def salvar_html(resultados: List[Dict], caminho: pathlib.Path = pathlib.Path("codecompass_report.html")) -> None:
+    html = ["<html><body>", "<h1>Relatório CodeCompass</h1>"]
+    for r in resultados:
+        html.append(f"<h2>{r['arquivo']}</h2>")
+        html.append(f"<p><strong>Linguagem:</strong> {r['linguagem']}</p>")
+        html.append(f"<p><strong>Resumo:</strong> {r['resumo']}</p>")
+        if r.get('pontos_atencao'):
+            html.append("<h3>Pontos de atenção</h3><ul>")
+            for p in r['pontos_atencao']:
+                html.append(f"<li>{p}</li>")
+            html.append("</ul>")
+        if r.get('sugestoes'):
+            html.append("<h3>Sugestões</h3><ul>")
+            for s in r['sugestoes']:
+                html.append(f"<li>{s}</li>")
+            html.append("</ul>")
+    html.append("</body></html>")
+    with caminho.open('w', encoding='utf-8') as f:
+        f.write('\n'.join(html))
+
 def main(arquivos: List[pathlib.Path]) -> None:
     resultados = []
     for caminho in arquivos:
@@ -79,11 +116,16 @@ def main(arquivos: List[pathlib.Path]) -> None:
             print(f"Erro ao analisar {caminho}: {exc}")
     salvar_json(resultados)
     salvar_markdown(resultados)
-    print("\n✅ Análise concluída. Relatórios salvos em: codecompass_report.json e codecompass_report.md")
+    salvar_html(resultados)
+    print("\n✅ Análise concluída. Relatórios salvos em: codecompass_report.json, codecompass_report.md e codecompass_report.html")
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
-        arquivos = [pathlib.Path(a) for a in sys.argv[1:]]
+        alvo = pathlib.Path(sys.argv[1])
+        if alvo.is_dir():
+            arquivos = listar_arquivos(alvo)
+        else:
+            arquivos = [alvo]
     else:
-        arquivos = [p for p in pathlib.Path('.').glob('*') if p.is_file()]
+        arquivos = listar_arquivos(pathlib.Path('.'))
     main(arquivos)
